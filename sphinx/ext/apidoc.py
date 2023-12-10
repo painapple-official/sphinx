@@ -187,6 +187,18 @@ def create_modules_toc_file(modules: list[str], opts: Any, name: str = 'modules'
     text = ReSTRenderer(template_path).render('toc.rst_t', context)
     write_file(name, text, opts)
 
+def test_private(filename):
+    file = os.read(os.open(filename, os.O_RDONLY), os.stat(filename).st_size).decode()
+    if match := re.match(r'("""|\'\'\')(?:(?!\1)[\s\S])*\1', file.strip()):
+        match = (
+            match.group(0)
+            .removeprefix('"""')
+            .removesuffix('"""')
+            .removeprefix("'''")
+            .removesuffix("'''")
+            .splitlines()
+        )
+        return any(x.strip() == ":meta private:" for x in match)
 
 def is_skipped_package(dirname: str, opts: Any,
                        excludes: Sequence[re.Pattern[str]] = ()) -> bool:
@@ -200,6 +212,11 @@ def is_skipped_package(dirname: str, opts: Any,
         # *dirname* is not both a regular package and an implicit namespace package
         return True
 
+    filename = path.join(dirname, "__init__.py")
+    if path.exists(filename):
+        if test_private(filename):
+            return True
+
     # Check there is some showable module inside package
     return all(is_excluded(path.join(dirname, f), excludes) for f in files)
 
@@ -212,6 +229,10 @@ def is_skipped_module(filename: str, opts: Any, _excludes: Sequence[re.Pattern[s
     if path.basename(filename).startswith('_') and not opts.includeprivate:
         # skip if the module has a "private" name
         return True
+    
+    if test_private(filename):
+        return True
+    
     return False
 
 
